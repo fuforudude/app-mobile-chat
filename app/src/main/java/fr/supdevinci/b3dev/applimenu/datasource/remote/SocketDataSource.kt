@@ -1,33 +1,31 @@
 package fr.supdevinci.b3dev.applimenu.datasource.remote
 
 import android.util.Log
+import fr.supdevinci.b3dev.applimenu.data.remote.dto.ConversationDto
+import fr.supdevinci.b3dev.applimenu.data.remote.dto.LastMessageDto
 import fr.supdevinci.b3dev.applimenu.data.remote.dto.MessageDto
+import fr.supdevinci.b3dev.applimenu.data.remote.dto.UserDto
 import io.socket.client.IO
 import io.socket.client.Socket
+import io.socket.emitter.Emitter
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 
 /**
  * DataSource pour la connexion WebSocket avec Socket.IO
- *
- * Points importants basés sur le retour d'expérience :
- * - Le serveur renvoie "sender" (string) et "sentAt" (timestamp)
- * - Pour sendMessage, utiliser { content: string } comme payload
- * - Écouter "messageHistory" pour l'historique après join
- * - Écouter "newMessage" pour les nouveaux messages
+ * Gère toutes les interactions avec le serveur WebSocket
  */
 class SocketDataSource {
 
     companion object {
         private const val TAG = "SocketDataSource"
-        private const val DEFAULT_URL = "http://10.0.2.2:3000" // localhost pour l'émulateur Android
+        private const val DEFAULT_URL = "http://10.0.2.2:3000"
     }
 
     private var socket: Socket? = null
@@ -39,14 +37,17 @@ class SocketDataSource {
     private val _incomingMessages = MutableStateFlow<List<MessageDto>>(emptyList())
     val incomingMessages: StateFlow<List<MessageDto>> = _incomingMessages.asStateFlow()
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
+    private val _conversations = MutableStateFlow<List<ConversationDto>>(emptyList())
+    val conversations: StateFlow<List<ConversationDto>> = _conversations.asStateFlow()
 
-    /**
-     * Se connecter au serveur Socket.IO et rejoindre le chat
-     */
+    private val _users = MutableStateFlow<List<UserDto>>(emptyList())
+    val users: StateFlow<List<UserDto>> = _users.asStateFlow()
+
+    private val _currentConversationMessages = MutableStateFlow<List<MessageDto>>(emptyList())
+    val currentConversationMessages: StateFlow<List<MessageDto>> = _currentConversationMessages.asStateFlow()
+
+    // ============== CONNEXION ==============
+
     fun connect(serverUrl: String = DEFAULT_URL, username: String): Flow<SocketEvent> = callbackFlow {
         try {
             Log.d(TAG, "Tentative de connexion à $serverUrl avec username: $username")
@@ -64,7 +65,6 @@ class SocketDataSource {
             currentUsername = username
 
             socket?.apply {
-                // Debug: Logger tous les événements reçus
                 onAnyIncoming { args ->
                     Log.d(TAG, "Événement reçu: ${args.contentToString()}")
                 }
@@ -78,8 +78,14 @@ class SocketDataSource {
                     val joinPayload = JSONObject().apply {
                         put("username", username)
                     }
-                    emit("join", joinPayload)
-                    Log.d(TAG, "Envoi de join avec: $joinPayload")
+                    emit("join", arrayOf(joinPayload)) { response ->
+                        val responseObj = response.firstOrNull() as? JSONObject
+                        val success = responseObj?.optBoolean("success", false) ?: false
+                        Log.d(TAG, "Join response: success=$success")
+                        if (success) {
+                            trySend(SocketEvent.JoinSuccess)
+                        }
+                    }
                 }
 
                 on(Socket.EVENT_DISCONNECT) {
@@ -95,14 +101,28 @@ class SocketDataSource {
                     trySend(SocketEvent.Error(error))
                 }
 
-                // Réception de l'historique des messages après join
+                // Réception de nouveaux messages dans une conversation
+                on("newConversationMessage") { args ->
+                    Log.d(TAG, "Nouveau message conversation: ${args.contentToString()}")
+                    try {
+                        val messageObj = args.firstOrNull() as? JSONObject
+                        if (messageObj != null) {
+                            val message = parseConversationMessage(messageObj)
+                            _currentConversationMessages.value = _currentConversationMessages.value + message
+                            trySend(SocketEvent.NewConversationMessage(message))
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Erreur parsing message: ${e.message}", e)
+                    }
+                }
+
+                // Legacy: écouter les anciens événements pour compatibilité
                 on("messageHistory") { args ->
                     Log.d(TAG, "Historique reçu: ${args.contentToString()}")
                     try {
                         val messagesArray = args.firstOrNull() as? JSONArray
                         if (messagesArray != null) {
                             val messages = parseMessageArray(messagesArray)
-                            Log.d(TAG, "Historique parsé: ${messages.size} messages")
                             _incomingMessages.value = messages
                             trySend(SocketEvent.MessageHistory(messages))
                         }
@@ -111,14 +131,12 @@ class SocketDataSource {
                     }
                 }
 
-                // Réception des nouveaux messages
                 on("newMessage") { args ->
-                    Log.d(TAG, "Nouveau message reçu: ${args.contentToString()}")
+                    Log.d(TAG, "Nouveau message: ${args.contentToString()}")
                     try {
                         val messageObj = args.firstOrNull() as? JSONObject
                         if (messageObj != null) {
                             val message = parseMessage(messageObj)
-                            Log.d(TAG, "Message parsé: $message")
                             _incomingMessages.value = _incomingMessages.value + message
                             trySend(SocketEvent.NewMessage(message))
                         }
@@ -127,7 +145,6 @@ class SocketDataSource {
                     }
                 }
 
-                // Écouter les erreurs du serveur
                 on("error") { args ->
                     val errorMsg = (args.firstOrNull() as? JSONObject)?.optString("message")
                         ?: args.firstOrNull()?.toString()
@@ -151,37 +168,6 @@ class SocketDataSource {
         }
     }
 
-    /**
-     * Envoyer un message
-     * IMPORTANT: Le payload doit être { content: string }
-     */
-    fun sendMessage(content: String, callback: ((Boolean, String?) -> Unit)? = null) {
-        val currentSocket = socket
-        if (currentSocket == null || !currentSocket.connected()) {
-            Log.e(TAG, "Impossible d'envoyer: socket non connecté")
-            callback?.invoke(false, "Non connecté")
-            return
-        }
-
-        val payload = JSONObject().apply {
-            put("content", content)
-        }
-
-        Log.d(TAG, "Envoi du message: $payload")
-
-        // Utiliser la version avec acknowledgment si disponible
-        currentSocket.emit("sendMessage", arrayOf(payload)) { response ->
-            Log.d(TAG, "Réponse du serveur après envoi: ${response.contentToString()}")
-            val responseObj = response.firstOrNull() as? JSONObject
-            val success = responseObj?.optBoolean("success", true) ?: true
-            val error = responseObj?.optString("error")
-            callback?.invoke(success, error)
-        }
-    }
-
-    /**
-     * Se déconnecter proprement
-     */
     fun disconnect() {
         Log.d(TAG, "Déconnexion...")
         socket?.disconnect()
@@ -190,15 +176,325 @@ class SocketDataSource {
         currentUsername = null
         _connectionState.value = ConnectionState.Disconnected
         _incomingMessages.value = emptyList()
+        _conversations.value = emptyList()
+        _users.value = emptyList()
+        _currentConversationMessages.value = emptyList()
     }
 
     fun isConnected(): Boolean = socket?.connected() == true
-
     fun getCurrentUsername(): String? = currentUsername
 
-    /**
-     * Parser un tableau de messages JSON
-     */
+    // ============== UTILISATEURS ==============
+
+    fun getAllUsers(callback: (Boolean, List<UserDto>) -> Unit) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, emptyList())
+            return
+        }
+
+        currentSocket.emit("getAllUsers", arrayOf(JSONObject())) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val usersArray = responseObj?.getJSONArray("users")
+                    val users = parseUsersArray(usersArray)
+                    _users.value = users
+                    callback(true, users)
+                } else {
+                    callback(false, emptyList())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur getAllUsers: ${e.message}")
+                callback(false, emptyList())
+            }
+        }
+    }
+
+    fun searchUsers(query: String, callback: (Boolean, List<UserDto>) -> Unit) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, emptyList())
+            return
+        }
+
+        val data = JSONObject().put("query", query)
+        currentSocket.emit("searchUsers", arrayOf(data)) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val usersArray = responseObj?.getJSONArray("users")
+                    val users = parseUsersArray(usersArray)
+                    _users.value = users
+                    callback(true, users)
+                } else {
+                    callback(false, emptyList())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur searchUsers: ${e.message}")
+                callback(false, emptyList())
+            }
+        }
+    }
+
+    // ============== CONVERSATIONS ==============
+
+    fun getConversations(callback: (Boolean, List<ConversationDto>) -> Unit) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, emptyList())
+            return
+        }
+
+        currentSocket.emit("getConversations", arrayOf(JSONObject())) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val convsArray = responseObj?.getJSONArray("conversations")
+                    val conversations = parseConversationsArray(convsArray)
+                    _conversations.value = conversations
+                    callback(true, conversations)
+                } else {
+                    callback(false, emptyList())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur getConversations: ${e.message}")
+                callback(false, emptyList())
+            }
+        }
+    }
+
+    fun createPrivateConversation(
+        recipientUsername: String,
+        callback: (Boolean, ConversationDto?, String?) -> Unit
+    ) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, null, "Non connecté")
+            return
+        }
+
+        val data = JSONObject().put("recipientUsername", recipientUsername)
+        currentSocket.emit("createPrivateConversation", arrayOf(data)) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val convJson = responseObj?.getJSONObject("conversation")
+                    val conversation = convJson?.let { parseConversation(it) }
+                    callback(true, conversation, null)
+                } else {
+                    val error = responseObj?.optString("error", "Erreur inconnue")
+                    callback(false, null, error)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur createPrivateConversation: ${e.message}")
+                callback(false, null, e.message)
+            }
+        }
+    }
+
+    fun createGroupConversation(
+        name: String,
+        memberUsernames: List<String>,
+        callback: (Boolean, ConversationDto?, String?) -> Unit
+    ) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, null, "Non connecté")
+            return
+        }
+
+        val membersArray = JSONArray(memberUsernames)
+        val data = JSONObject()
+            .put("name", name)
+            .put("memberUsernames", membersArray)
+
+        currentSocket.emit("createGroupConversation", arrayOf(data)) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val convJson = responseObj?.getJSONObject("conversation")
+                    val conversation = convJson?.let { parseConversation(it) }
+                    callback(true, conversation, null)
+                } else {
+                    val error = responseObj?.optString("error", "Erreur inconnue")
+                    callback(false, null, error)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur createGroupConversation: ${e.message}")
+                callback(false, null, e.message)
+            }
+        }
+    }
+
+    // ============== MESSAGES ==============
+
+    fun getConversationMessages(conversationId: Int, callback: (Boolean, List<MessageDto>) -> Unit) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, emptyList())
+            return
+        }
+
+        val data = JSONObject().put("conversationId", conversationId)
+        currentSocket.emit("getConversationMessages", arrayOf(data)) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                if (success) {
+                    val messagesArray = responseObj?.getJSONArray("messages")
+                    val messages = parseConversationMessagesArray(messagesArray, conversationId)
+                    _currentConversationMessages.value = messages
+                    callback(true, messages)
+                } else {
+                    callback(false, emptyList())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur getConversationMessages: ${e.message}")
+                callback(false, emptyList())
+            }
+        }
+    }
+
+    fun sendMessageToConversation(
+        conversationId: Int,
+        content: String,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback(false, "Non connecté")
+            return
+        }
+
+        val data = JSONObject()
+            .put("conversationId", conversationId)
+            .put("content", content)
+
+        currentSocket.emit("sendMessageToConversation", arrayOf(data)) { response ->
+            try {
+                val responseObj = response.firstOrNull() as? JSONObject
+                val success = responseObj?.optBoolean("success", false) ?: false
+                val error = responseObj?.optString("error")
+                callback(success, error)
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur sendMessageToConversation: ${e.message}")
+                callback(false, e.message)
+            }
+        }
+    }
+
+    // Legacy: pour compatibilité avec l'ancien système
+    fun sendMessage(content: String, callback: ((Boolean, String?) -> Unit)? = null) {
+        val currentSocket = socket
+        if (currentSocket == null || !currentSocket.connected()) {
+            callback?.invoke(false, "Non connecté")
+            return
+        }
+
+        val payload = JSONObject().apply {
+            put("content", content)
+        }
+
+        currentSocket.emit("sendMessage", arrayOf(payload)) { response ->
+            val responseObj = response.firstOrNull() as? JSONObject
+            val success = responseObj?.optBoolean("success", true) ?: true
+            val error = responseObj?.optString("error")
+            callback?.invoke(success, error)
+        }
+    }
+
+    // ============== PARSERS ==============
+
+    private fun parseUsersArray(array: JSONArray?): List<UserDto> {
+        if (array == null) return emptyList()
+        val users = mutableListOf<UserDto>()
+        for (i in 0 until array.length()) {
+            try {
+                val userJson = array.getJSONObject(i)
+                users.add(
+                    UserDto(
+                        id = userJson.getInt("id"),
+                        username = userJson.getString("username"),
+                        isOnline = userJson.optBoolean("isOnline", false)
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur parsing user index $i: ${e.message}")
+            }
+        }
+        return users
+    }
+
+    private fun parseConversationsArray(array: JSONArray?): List<ConversationDto> {
+        if (array == null) return emptyList()
+        val conversations = mutableListOf<ConversationDto>()
+        for (i in 0 until array.length()) {
+            try {
+                val convJson = array.getJSONObject(i)
+                conversations.add(parseConversation(convJson))
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur parsing conversation index $i: ${e.message}")
+            }
+        }
+        return conversations
+    }
+
+    private fun parseConversation(json: JSONObject): ConversationDto {
+        val lastMessageJson = json.optJSONObject("lastMessage")
+        val lastMessage = lastMessageJson?.let {
+            LastMessageDto(
+                content = it.getString("content"),
+                sender = it.getString("sender"),
+                sentAt = it.getString("sentAt")
+            )
+        }
+
+        return ConversationDto(
+            id = json.getInt("id"),
+            type = json.getString("type"),
+            name = json.getString("name"),
+            memberCount = json.optInt("memberCount", 0),
+            createdAt = json.getString("createdAt"),
+            lastMessage = lastMessage
+        )
+    }
+
+    private fun parseConversationMessagesArray(array: JSONArray?, conversationId: Int): List<MessageDto> {
+        if (array == null) return emptyList()
+        val messages = mutableListOf<MessageDto>()
+        for (i in 0 until array.length()) {
+            try {
+                val msgJson = array.getJSONObject(i)
+                messages.add(
+                    MessageDto(
+                        id = msgJson.optString("id", msgJson.optInt("id").toString()),
+                        content = msgJson.getString("content"),
+                        sender = msgJson.getString("sender"),
+                        sentAt = parseSentAt(msgJson)
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur parsing message index $i: ${e.message}")
+            }
+        }
+        return messages
+    }
+
+    private fun parseConversationMessage(obj: JSONObject): MessageDto {
+        return MessageDto(
+            id = obj.optString("id", obj.optInt("id").toString()),
+            content = obj.getString("content"),
+            sender = obj.getString("sender"),
+            sentAt = parseSentAt(obj)
+        )
+    }
+
     private fun parseMessageArray(array: JSONArray): List<MessageDto> {
         val messages = mutableListOf<MessageDto>()
         for (i in 0 until array.length()) {
@@ -212,10 +508,6 @@ class SocketDataSource {
         return messages
     }
 
-    /**
-     * Parser un message JSON
-     * Format attendu: { sender: string, content: string, sentAt: number/string }
-     */
     private fun parseMessage(obj: JSONObject): MessageDto {
         return MessageDto(
             id = obj.optString("id", null),
@@ -225,15 +517,10 @@ class SocketDataSource {
         )
     }
 
-    /**
-     * Parser le timestamp sentAt (peut être string ISO ou number)
-     */
     private fun parseSentAt(obj: JSONObject): Long {
         return try {
-            // Essayer d'abord comme Long
             obj.optLong("sentAt", 0).takeIf { it != 0L }
-                ?: // Sinon essayer de parser une date ISO
-                try {
+                ?: try {
                     val dateStr = obj.optString("sentAt", "")
                     if (dateStr.isNotEmpty()) {
                         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
@@ -266,8 +553,10 @@ sealed class ConnectionState {
 sealed class SocketEvent {
     data object Connected : SocketEvent()
     data object Disconnected : SocketEvent()
+    data object JoinSuccess : SocketEvent()
     data class Error(val message: String) : SocketEvent()
     data class MessageHistory(val messages: List<MessageDto>) : SocketEvent()
     data class NewMessage(val message: MessageDto) : SocketEvent()
+    data class NewConversationMessage(val message: MessageDto) : SocketEvent()
 }
 
