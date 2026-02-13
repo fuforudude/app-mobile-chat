@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 // URL du serveur WebSocket
-private const val SERVER_URL = "http://10.0.2.2:3000"
+private const val SERVER_URL = "https://websocketkotlin.onrender.com"
 
 @Composable
 fun AuthScreen(

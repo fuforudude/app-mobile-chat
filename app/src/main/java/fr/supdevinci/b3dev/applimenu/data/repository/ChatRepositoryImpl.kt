@@ -2,7 +2,7 @@ package fr.supdevinci.b3dev.applimenu.data.repository
 
 import android.util.Log
 import fr.supdevinci.b3dev.applimenu.data.mapper.toDomain
-import fr.supdevinci.b3dev.applimenu.domain.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
 import fr.supdevinci.b3dev.applimenu.domain.repository.ChatRepository

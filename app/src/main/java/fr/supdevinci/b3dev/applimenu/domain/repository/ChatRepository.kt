@@ -1,6 +1,6 @@
 package fr.supdevinci.b3dev.applimenu.domain.repository
 
-import fr.supdevinci.b3dev.applimenu.domain.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
 import fr.supdevinci.b3dev.applimenu.datasource.remote.ConnectionState

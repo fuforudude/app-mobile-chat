@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import fr.supdevinci.b3dev.applimenu.data.repository.ChatRepositoryImpl
 import fr.supdevinci.b3dev.applimenu.datasource.remote.ConnectionState
 import fr.supdevinci.b3dev.applimenu.datasource.remote.SocketDataSource
-import fr.supdevinci.b3dev.applimenu.domain.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +21,7 @@ class ChatViewModel : ViewModel() {
 
     companion object {
         private const val TAG = "ChatViewModel"
-        const val DEFAULT_SERVER_URL = "http://10.0.2.2:3000"
+        const val DEFAULT_SERVER_URL = "https://websocketkotlin.onrender.com"
     }
 
     private val socketDataSource = SocketDataSource()

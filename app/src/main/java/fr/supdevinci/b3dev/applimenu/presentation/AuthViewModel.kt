@@ -9,7 +9,7 @@ import fr.supdevinci.b3dev.applimenu.data.remote.service.AuthService
 import fr.supdevinci.b3dev.applimenu.data.repository.ChatRepositoryImpl
 import fr.supdevinci.b3dev.applimenu.datasource.remote.ConnectionState
 import fr.supdevinci.b3dev.applimenu.datasource.remote.SocketDataSource
-import fr.supdevinci.b3dev.applimenu.domain.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +28,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "AuthViewModel"
-        const val DEFAULT_SERVER_URL = "http://10.0.2.2:3000"
+        const val DEFAULT_SERVER_URL = "https://websocketkotlin.onrender.com"
     }
 
     // Services

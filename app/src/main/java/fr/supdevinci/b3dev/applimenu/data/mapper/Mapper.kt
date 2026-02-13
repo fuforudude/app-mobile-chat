@@ -4,8 +4,8 @@ import fr.supdevinci.b3dev.applimenu.data.local.entity.MessageEntity
 import fr.supdevinci.b3dev.applimenu.data.remote.dto.ConversationDto
 import fr.supdevinci.b3dev.applimenu.data.remote.dto.MessageDto
 import fr.supdevinci.b3dev.applimenu.data.remote.dto.UserDto
-import fr.supdevinci.b3dev.applimenu.domain.Message
-import fr.supdevinci.b3dev.applimenu.domain.MessageStatus
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.MessageStatus
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.ConversationType
 import fr.supdevinci.b3dev.applimenu.domain.model.LastMessage

@@ -25,7 +25,7 @@ class SocketDataSource {
 
     companion object {
         private const val TAG = "SocketDataSource"
-        private const val DEFAULT_URL = "http://10.0.2.2:3000"
+        private const val DEFAULT_URL = "https://websocketkotlin.onrender.com"
     }
 
     private var socket: Socket? = null

@@ -12,7 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import fr.supdevinci.b3dev.applimenu.domain.Message
+import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import java.text.SimpleDateFormat
 import java.util.Locale
 

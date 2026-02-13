@@ -1,12 +1,13 @@
-package fr.supdevinci.b3dev.applimenu.domain
+package fr.supdevinci.b3dev.applimenu.domain.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
-@Entity(tableName = "menuItems")
+@Entity(tableName = "messages")
 @Serializable
 data class Message (
+    @PrimaryKey
     val id: String,
     val text: String,
     val senderId: String,
