@@ -187,7 +187,14 @@ fun ConversationItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = if (conversation.hasUnreadMessages) {
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            )
+        } else {
+            CardDefaults.cardColors()
+        }
     ) {
         Row(
             modifier = Modifier
@@ -195,24 +202,37 @@ fun ConversationItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = CircleShape,
-                color = if (conversation.type == ConversationType.GROUP)
-                    MaterialTheme.colorScheme.secondaryContainer
-                else
-                    MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = if (conversation.type == ConversationType.GROUP)
-                            Icons.Default.Group
-                        else
-                            Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
+            // Avatar avec pastille
+            Box {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = CircleShape,
+                    color = if (conversation.type == ConversationType.GROUP)
+                        MaterialTheme.colorScheme.secondaryContainer
+                    else
+                        MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (conversation.type == ConversationType.GROUP)
+                                Icons.Default.Group
+                            else
+                                Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Pastille bleue pour messages non lus
+                if (conversation.hasUnreadMessages) {
+                    Surface(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .align(Alignment.TopEnd),
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary
+                    ) {}
                 }
             }
 
@@ -228,7 +248,7 @@ fun ConversationItem(
                     Text(
                         text = conversation.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (conversation.hasUnreadMessages) FontWeight.Bold else FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -248,7 +268,11 @@ fun ConversationItem(
                     Text(
                         text = "${lastMessage.sender}: ${lastMessage.content}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (conversation.hasUnreadMessages)
+                            MaterialTheme.colorScheme.onSurface
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (conversation.hasUnreadMessages) FontWeight.Medium else FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

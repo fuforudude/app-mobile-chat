@@ -6,7 +6,8 @@ data class Conversation(
     val name: String,
     val memberCount: Int = 0,
     val createdAt: String,
-    val lastMessage: LastMessage? = null
+    val lastMessage: LastMessage? = null,
+    val hasUnreadMessages: Boolean = false
 )
 
 enum class ConversationType {

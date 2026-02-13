@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,13 +53,22 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     // États de l'UI
     val connectionState: StateFlow<ConnectionState> = repository.connectionState
 
-    // Conversations
-    val conversations: StateFlow<List<Conversation>> = repository.conversations
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    // Set des IDs de conversations avec messages non lus
+    private val _unreadConversationIds = MutableStateFlow<Set<Int>>(emptySet())
+
+    // Conversations avec indicateur de messages non lus
+    val conversations: StateFlow<List<Conversation>> = combine(
+        repository.conversations,
+        _unreadConversationIds
+    ) { convList, unreadIds ->
+        convList.map { conv ->
+            conv.copy(hasUnreadMessages = unreadIds.contains(conv.id))
+        }.sortedByDescending { it.hasUnreadMessages } // Les non lues en premier
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     // Utilisateurs
     val users: StateFlow<List<User>> = repository.users
@@ -122,6 +132,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (!isOnThisConversation) {
                         Log.d(TAG, "Notification: ${messageInfo.sender} - ${messageInfo.content}")
+
+                        // Marquer la conversation comme non lue
+                        if (messageConvId != null) {
+                            _unreadConversationIds.value = _unreadConversationIds.value + messageConvId
+                            Log.d(TAG, "Conversation $messageConvId marquée comme non lue")
+                        }
+
+                        // Afficher la notification
                         notificationService.showMessageNotification(
                             senderName = messageInfo.sender,
                             messageContent = messageInfo.content,
@@ -410,7 +428,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openConversation(conversationId: Int) {
         _currentConversationId.value = conversationId
+        // Marquer la conversation comme lue
+        markConversationAsRead(conversationId)
         loadConversationMessages(conversationId)
+    }
+
+    /**
+     * Marquer une conversation comme lue (retirer la pastille)
+     */
+    fun markConversationAsRead(conversationId: Int) {
+        _unreadConversationIds.value = _unreadConversationIds.value - conversationId
+        Log.d(TAG, "Conversation $conversationId marquée comme lue")
     }
 
     fun loadConversationMessages(conversationId: Int) {
