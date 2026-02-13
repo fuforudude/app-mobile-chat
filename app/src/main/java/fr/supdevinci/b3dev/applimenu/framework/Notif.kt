@@ -36,10 +36,14 @@ object Notif {
             .setSmallIcon(R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(1001, notif)
+        NotificationManagerCompat.from(context).notify(
+            System.currentTimeMillis().toInt(),
+            notif
+        )
     }
 
     fun openAppPendingIntent(context: Context): PendingIntent {
@@ -54,4 +58,5 @@ object Notif {
         )
 
     }
+
 }

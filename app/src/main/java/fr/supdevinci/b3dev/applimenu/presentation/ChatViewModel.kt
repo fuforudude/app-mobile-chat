@@ -1,6 +1,11 @@
 package fr.supdevinci.b3dev.applimenu.presentation
 
+import android.Manifest
+import android.app.Application
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import fr.supdevinci.b3dev.applimenu.data.repository.ChatRepositoryImpl
@@ -9,16 +14,21 @@ import fr.supdevinci.b3dev.applimenu.datasource.remote.SocketDataSource
 import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
+import fr.supdevinci.b3dev.applimenu.framework.Notif
+import fr.supdevinci.b3dev.applimenu.framework.Notif.show
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val context = application.applicationContext
     companion object {
         private const val TAG = "ChatViewModel"
         const val DEFAULT_SERVER_URL = "https://websocketkotlin.onrender.com"
@@ -27,18 +37,31 @@ class ChatViewModel : ViewModel() {
     private val socketDataSource = SocketDataSource()
     private val repository = ChatRepositoryImpl(socketDataSource)
 
-    // États de l'UI
     val connectionState: StateFlow<ConnectionState> = repository.connectionState
 
-    // Messages legacy (ancien système)
     val uiState: StateFlow<List<Message>> = repository.messages
+        .onEach { messageList ->
+            val lastMessage = messageList.lastOrNull()
+            val myUsername = _currentUsername.value
+
+            if (lastMessage != null && lastMessage.senderId != myUsername) {
+
+                if (Build.VERSION.SDK_INT < 33 ||
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.POST_NOTIFICATIONS
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+
+                    showNotification(lastMessage)
+                }
+            }
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
-    // Conversations
     val conversations: StateFlow<List<Conversation>> = repository.conversations
         .stateIn(
             scope = viewModelScope,
@@ -46,7 +69,6 @@ class ChatViewModel : ViewModel() {
             initialValue = emptyList()
         )
 
-    // Utilisateurs
     val users: StateFlow<List<User>> = repository.users
         .stateIn(
             scope = viewModelScope,
@@ -54,7 +76,6 @@ class ChatViewModel : ViewModel() {
             initialValue = emptyList()
         )
 
-    // Messages de la conversation actuelle
     val currentConversationMessages: StateFlow<List<Message>> = repository.currentConversationMessages
         .stateIn(
             scope = viewModelScope,
@@ -248,5 +269,18 @@ class ChatViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         disconnect()
+    }
+
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    private fun showNotification(message: Message) {
+        val pi = Notif.openAppPendingIntent(context)
+        Notif.ensureChannel(context)
+
+        show(
+            context = context,
+            title = "Nouveau message de ${message.senderId}",
+            text = message.text,
+            pendingIntent = pi
+        )
     }
 }
