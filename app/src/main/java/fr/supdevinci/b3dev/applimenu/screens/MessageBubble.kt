@@ -18,10 +18,15 @@ import java.util.Locale
 
 @Composable
 fun MessageBubble(message: Message) {
-    val alignment = if (message.isFromMe) Alignment.CenterEnd else Alignment.CenterStart
+    val alignment = if (message.isFromMe) Alignment.End else Alignment.Start
     val color = if (message.isFromMe) MaterialTheme.colorScheme.primary else Color.LightGray
 
-    Column(modifier = Modifier.fillMaxWidth().padding(4.dp), horizontalAlignment = alignment as Alignment.Horizontal) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(4.dp),
+        horizontalAlignment = alignment
+    ) {
         if (!message.isFromMe) {
             Text(text = message.senderId, style = MaterialTheme.typography.labelSmall)
         }
