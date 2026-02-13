@@ -4,17 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box // Importation manquante
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel // INDISPENSABLE
 import fr.supdevinci.b3dev.applimenu.screens.AuthScreen
 import fr.supdevinci.b3dev.applimenu.screens.ChatScreen
 import fr.supdevinci.b3dev.applimenu.ui.theme.AppliMenuTheme
@@ -26,13 +25,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AppliMenuTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    var isLoggedIn by remember { mutableStateOf(false) }
 
-                    if (!isLoggedIn) {
-                        AuthScreen(onLoginSuccess = { isLoggedIn = true })
-                    } else {
-                        ChatScreen(viewModel = ChatViewModel)
+                val myChatViewModel: ChatViewModel = viewModel()
+
+                var isLoggedIn by remember { mutableStateOf(false) }
+
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        if (!isLoggedIn) {
+                            AuthScreen(onLoginSuccess = { isLoggedIn = true })
+                        } else {
+                            ChatScreen(viewModel = myChatViewModel)
+                        }
                     }
                 }
             }
