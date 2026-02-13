@@ -1,9 +1,13 @@
 package fr.supdevinci.b3dev.applimenu
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -17,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import fr.supdevinci.b3dev.applimenu.screens.ConversationChatScreen
 import fr.supdevinci.b3dev.applimenu.screens.ConversationsScreen
@@ -34,14 +39,56 @@ sealed class Screen {
 }
 
 class MainActivity : ComponentActivity() {
+
+    // Launcher pour demander la permission de notification
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            android.util.Log.d("MainActivity", "Permission de notification accordée")
+        } else {
+            android.util.Log.d("MainActivity", "Permission de notification refusée")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Demander la permission de notification pour Android 13+
+        askNotificationPermission()
+
         enableEdgeToEdge()
         setContent {
             AppliMenuTheme {
                 val authViewModel: AuthViewModel = viewModel()
 
                 MainNavigation(viewModel = authViewModel)
+            }
+        }
+    }
+
+    /**
+     * Demander la permission de notification (Android 13+)
+     */
+    private fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    // Permission déjà accordée
+                    android.util.Log.d("MainActivity", "Permission de notification déjà accordée")
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    // Expliquer pourquoi on a besoin de la permission (optionnel)
+                    // Pour l'instant, on demande directement
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    // Demander la permission
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             }
         }
     }

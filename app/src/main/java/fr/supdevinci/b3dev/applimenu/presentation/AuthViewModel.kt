@@ -12,6 +12,7 @@ import fr.supdevinci.b3dev.applimenu.datasource.remote.SocketDataSource
 import fr.supdevinci.b3dev.applimenu.domain.model.Message
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.User
+import fr.supdevinci.b3dev.applimenu.notification.NotificationService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val authService = AuthService("$DEFAULT_SERVER_URL/")
     private val socketDataSource = SocketDataSource()
     private val repository = ChatRepositoryImpl(socketDataSource)
+    private val notificationService = NotificationService(application)
 
     // État d'authentification
     private val _isAuthenticated = MutableStateFlow(false)
@@ -86,9 +88,37 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // Pour éviter les notifications pour ses propres messages
+    private var lastMessageCount = 0
+
     init {
         // Vérifier si l'utilisateur est déjà connecté
         checkExistingSession()
+        // Observer les nouveaux messages pour les notifications
+        observeMessagesForNotifications()
+    }
+
+    /**
+     * Observer les messages entrants pour afficher des notifications
+     */
+    private fun observeMessagesForNotifications() {
+        viewModelScope.launch {
+            currentConversationMessages.collect { messages ->
+                // Ne notifier que pour les nouveaux messages (pas au chargement initial)
+                if (messages.isNotEmpty() && messages.size > lastMessageCount && lastMessageCount > 0) {
+                    val newMessage = messages.last()
+                    // Ne pas notifier pour ses propres messages
+                    if (!newMessage.isFromMe) {
+                        Log.d(TAG, "Nouveau message reçu, envoi notification: ${newMessage.senderId}")
+                        notificationService.showMessageNotification(
+                            senderName = newMessage.senderId,
+                            messageContent = newMessage.text
+                        )
+                    }
+                }
+                lastMessageCount = messages.size
+            }
+        }
     }
 
     // ============== AUTHENTIFICATION ==============
