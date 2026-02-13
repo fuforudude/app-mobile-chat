@@ -164,6 +164,7 @@ fun MainNavigation(viewModel: AuthViewModel) {
                             conversationId = screen.conversationId,
                             conversationName = screen.conversationName,
                             onBack = {
+                                viewModel.closeConversation()
                                 viewModel.loadConversations()
                                 currentScreen = Screen.Conversations
                             }

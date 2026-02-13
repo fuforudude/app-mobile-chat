@@ -89,7 +89,7 @@ class ChatRepositoryImpl(
                         conversationId = messageDto.conversationId,
                         isFromMe = isFromMe
                     )
-                    Log.d(TAG, "Message #${messageWithId.id} pour notif: sender=${messageDto.sender}, convId=${messageDto.conversationId}, isFromMe=$isFromMe")
+                    Log.d(TAG, "Message #${messageWithId.id} pour notif: sender=${messageDto.sender}, currentUser=$currentUsername, isFromMe=$isFromMe, convId=${messageDto.conversationId}")
                     _lastReceivedMessage.value = newInfo
                 }
             }

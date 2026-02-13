@@ -447,6 +447,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Fermer la conversation actuelle (quand on retourne à la liste)
+     */
+    fun closeConversation() {
+        Log.d(TAG, "Fermeture de la conversation ${_currentConversationId.value}")
+        _currentConversationId.value = null
+    }
+
+    /**
      * Marquer une conversation comme lue (retirer la pastille)
      */
     fun markConversationAsRead(conversationId: Int) {
