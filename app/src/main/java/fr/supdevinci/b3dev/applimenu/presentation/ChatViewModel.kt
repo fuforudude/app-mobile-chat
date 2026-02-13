@@ -2,9 +2,11 @@ package fr.supdevinci.b3dev.applimenu.presentation
 
 import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -40,17 +42,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val connectionState: StateFlow<ConnectionState> = repository.connectionState
 
     val uiState: StateFlow<List<Message>> = repository.messages
-        .onEach { messageList ->
+        .onEach @androidx.annotation.RequiresPermission(android.Manifest.permission.POST_NOTIFICATIONS) { messageList ->
             val lastMessage = messageList.lastOrNull()
             val myUsername = _currentUsername.value
 
             if (lastMessage != null && lastMessage.senderId != myUsername) {
 
                 if (Build.VERSION.SDK_INT < 33 ||
-                    androidx.core.content.ContextCompat.checkSelfPermission(
+                    ContextCompat.checkSelfPermission(
                         context,
-                        android.Manifest.permission.POST_NOTIFICATIONS
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED) {
 
                     showNotification(lastMessage)
                 }
