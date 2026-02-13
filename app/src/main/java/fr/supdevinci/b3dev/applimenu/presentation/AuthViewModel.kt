@@ -88,8 +88,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // Pour éviter les notifications pour ses propres messages
-    private var lastMessageCount = 0
+    // Pour savoir si l'app est au premier plan
+    private val _isAppInForeground = MutableStateFlow(true)
+
+    fun setAppInForeground(inForeground: Boolean) {
+        _isAppInForeground.value = inForeground
+    }
 
     init {
         // Vérifier si l'utilisateur est déjà connecté
@@ -100,23 +104,33 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Observer les messages entrants pour afficher des notifications
+     * Ne notifie pas si:
+     * - C'est notre propre message
+     * - On est actuellement sur cette conversation
      */
     private fun observeMessagesForNotifications() {
         viewModelScope.launch {
-            currentConversationMessages.collect { messages ->
-                // Ne notifier que pour les nouveaux messages (pas au chargement initial)
-                if (messages.isNotEmpty() && messages.size > lastMessageCount && lastMessageCount > 0) {
-                    val newMessage = messages.last()
-                    // Ne pas notifier pour ses propres messages
-                    if (!newMessage.isFromMe) {
-                        Log.d(TAG, "Nouveau message reçu, envoi notification: ${newMessage.senderId}")
+            repository.lastReceivedMessage.collect { messageInfo ->
+                if (messageInfo != null && !messageInfo.isFromMe) {
+                    // Vérifier si on est sur cette conversation
+                    val currentConvId = _currentConversationId.value
+                    val messageConvId = messageInfo.conversationId
+
+                    val isOnThisConversation = currentConvId != null &&
+                                               messageConvId != null &&
+                                               currentConvId == messageConvId
+
+                    if (!isOnThisConversation) {
+                        Log.d(TAG, "Notification: ${messageInfo.sender} - ${messageInfo.content}")
                         notificationService.showMessageNotification(
-                            senderName = newMessage.senderId,
-                            messageContent = newMessage.text
+                            senderName = messageInfo.sender,
+                            messageContent = messageInfo.content,
+                            conversationId = messageInfo.conversationId
                         )
+                    } else {
+                        Log.d(TAG, "Message ignoré (sur la conv): ${messageInfo.sender}")
                     }
                 }
-                lastMessageCount = messages.size
             }
         }
     }

@@ -47,6 +47,10 @@ class SocketDataSource {
     private val _currentConversationMessages = MutableStateFlow<List<MessageDto>>(emptyList())
     val currentConversationMessages: StateFlow<List<MessageDto>> = _currentConversationMessages.asStateFlow()
 
+    // Dernier message reçu (pour les notifications) - contient le conversationId
+    private val _lastReceivedMessage = MutableStateFlow<MessageDto?>(null)
+    val lastReceivedMessage: StateFlow<MessageDto?> = _lastReceivedMessage.asStateFlow()
+
     // ============== CONNEXION AVEC JWT ==============
 
     /**
@@ -129,6 +133,9 @@ class SocketDataSource {
                     if (messageObj != null) {
                         val message = parseConversationMessage(messageObj)
                         _currentConversationMessages.value = _currentConversationMessages.value + message
+                        // Mettre à jour le dernier message reçu pour les notifications
+                        _lastReceivedMessage.value = message
+                        Log.d(TAG, "Dernier message reçu: sender=${message.sender}, convId=${message.conversationId}")
                         scope.trySend(SocketEvent.NewConversationMessage(message))
                     }
                 } catch (e: Exception) {
@@ -664,7 +671,8 @@ class SocketDataSource {
             id = obj.optString("id", obj.optInt("id").toString()),
             content = obj.getString("content"),
             sender = obj.getString("sender"),
-            sentAt = parseSentAt(obj)
+            sentAt = parseSentAt(obj),
+            conversationId = obj.optInt("conversationId", -1).takeIf { it != -1 }
         )
     }
 

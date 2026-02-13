@@ -52,11 +52,40 @@ class ChatRepositoryImpl(
     private val _currentConversationMessages = MutableStateFlow<List<Message>>(emptyList())
     override val currentConversationMessages: StateFlow<List<Message>> = _currentConversationMessages.asStateFlow()
 
+    // Dernier message reçu (pour les notifications)
+    data class ReceivedMessageInfo(
+        val sender: String,
+        val content: String,
+        val conversationId: Int?,
+        val isFromMe: Boolean
+    )
+    private val _lastReceivedMessage = MutableStateFlow<ReceivedMessageInfo?>(null)
+    val lastReceivedMessage: StateFlow<ReceivedMessageInfo?> = _lastReceivedMessage.asStateFlow()
+
     init {
         observeIncomingMessages()
         observeConversations()
         observeUsers()
         observeConversationMessages()
+        observeLastReceivedMessage()
+    }
+
+    private fun observeLastReceivedMessage() {
+        scope.launch {
+            socketDataSource.lastReceivedMessage.collect { messageDto ->
+                if (messageDto != null) {
+                    val currentUsername = socketDataSource.getCurrentUsername()
+                    val isFromMe = messageDto.sender == currentUsername
+                    _lastReceivedMessage.value = ReceivedMessageInfo(
+                        sender = messageDto.sender,
+                        content = messageDto.content,
+                        conversationId = messageDto.conversationId,
+                        isFromMe = isFromMe
+                    )
+                    Log.d(TAG, "Nouveau message pour notif: sender=${messageDto.sender}, convId=${messageDto.conversationId}, isFromMe=$isFromMe")
+                }
+            }
+        }
     }
 
     private fun observeIncomingMessages() {

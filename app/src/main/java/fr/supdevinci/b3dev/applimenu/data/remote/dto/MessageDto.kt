@@ -8,5 +8,6 @@ data class MessageDto(
     val id: String? = null,
     val content: String,
     val sender: String,
-    val sentAt: Long
+    val sentAt: Long,
+    val conversationId: Int? = null
 )
