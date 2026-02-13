@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -122,8 +123,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
      * - On est actuellement sur cette conversation
      */
     private fun observeMessagesForNotifications() {
-        viewModelScope.launch {
-            repository.lastReceivedMessage.collect { messageInfo ->
+        repository.lastReceivedMessage
+            .onEach { messageInfo ->
+                Log.d(TAG, "observeMessagesForNotifications reçu: $messageInfo, lastProcessed=$lastProcessedMessageId")
+
                 // Vérifier que c'est un NOUVEAU message (ID différent du dernier traité)
                 if (messageInfo != null && messageInfo.uniqueId != lastProcessedMessageId) {
                     lastProcessedMessageId = messageInfo.uniqueId
@@ -155,10 +158,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         } else {
                             Log.d(TAG, "Message ignoré (sur la conv): ${messageInfo.sender}")
                         }
+                    } else {
+                        Log.d(TAG, "Message ignoré (mon message): ${messageInfo.sender}")
                     }
                 }
             }
-        }
+            .launchIn(viewModelScope)
     }
 
     // ============== AUTHENTIFICATION ==============

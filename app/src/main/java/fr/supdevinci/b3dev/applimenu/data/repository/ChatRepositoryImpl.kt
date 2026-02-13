@@ -63,6 +63,9 @@ class ChatRepositoryImpl(
     private val _lastReceivedMessage = MutableStateFlow<ReceivedMessageInfo?>(null)
     val lastReceivedMessage: StateFlow<ReceivedMessageInfo?> = _lastReceivedMessage.asStateFlow()
 
+    // Tracker pour éviter de traiter le même message plusieurs fois
+    private var lastProcessedMessageId = -1L
+
     init {
         observeIncomingMessages()
         observeConversations()
@@ -72,13 +75,14 @@ class ChatRepositoryImpl(
     }
 
     private fun observeLastReceivedMessage() {
-        scope.launch {
-            socketDataSource.lastReceivedMessage.collect { messageWithId ->
-                if (messageWithId != null) {
+        socketDataSource.lastReceivedMessage
+            .onEach { messageWithId ->
+                if (messageWithId != null && messageWithId.id != lastProcessedMessageId) {
+                    lastProcessedMessageId = messageWithId.id
                     val messageDto = messageWithId.message
                     val currentUsername = socketDataSource.getCurrentUsername()
                     val isFromMe = messageDto.sender == currentUsername
-                    _lastReceivedMessage.value = ReceivedMessageInfo(
+                    val newInfo = ReceivedMessageInfo(
                         uniqueId = messageWithId.id,
                         sender = messageDto.sender,
                         content = messageDto.content,
@@ -86,9 +90,10 @@ class ChatRepositoryImpl(
                         isFromMe = isFromMe
                     )
                     Log.d(TAG, "Message #${messageWithId.id} pour notif: sender=${messageDto.sender}, convId=${messageDto.conversationId}, isFromMe=$isFromMe")
+                    _lastReceivedMessage.value = newInfo
                 }
             }
-        }
+            .launchIn(scope)
     }
 
     private fun observeIncomingMessages() {

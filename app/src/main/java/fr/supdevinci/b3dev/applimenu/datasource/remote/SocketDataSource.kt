@@ -138,10 +138,11 @@ class SocketDataSource {
                     if (messageObj != null) {
                         val message = parseConversationMessage(messageObj)
                         _currentConversationMessages.value = _currentConversationMessages.value + message
-                        // Émettre le message avec un ID unique pour les notifications
+                        // Émettre le message avec un ID unique (timestamp + counter pour garantir unicité)
                         messageCounter++
-                        _lastReceivedMessage.value = MessageWithId(messageCounter, message)
-                        Log.d(TAG, "Message #$messageCounter: sender=${message.sender}, convId=${message.conversationId}")
+                        val uniqueId = System.currentTimeMillis() * 1000 + messageCounter
+                        _lastReceivedMessage.value = MessageWithId(uniqueId, message)
+                        Log.d(TAG, "Message #$uniqueId: sender=${message.sender}, convId=${message.conversationId}")
                         scope.trySend(SocketEvent.NewConversationMessage(message))
                     }
                 } catch (e: Exception) {
