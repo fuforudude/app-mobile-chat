@@ -108,6 +108,7 @@ class ChatRepositoryImpl(
                     is SocketEvent.MessageHistory -> Log.d(TAG, "Événement: Historique (${event.messages.size})")
                     is SocketEvent.NewMessage -> Log.d(TAG, "Événement: Nouveau message")
                     is SocketEvent.NewConversationMessage -> Log.d(TAG, "Événement: Message conversation")
+                    is SocketEvent.NewConversation -> Log.d(TAG, "Événement: Nouvelle conversation - ${event.conversation.name}")
                 }
             }
             .launchIn(scope)
@@ -128,6 +129,7 @@ class ChatRepositoryImpl(
                     is SocketEvent.MessageHistory -> Log.d(TAG, "Événement JWT: Historique (${event.messages.size})")
                     is SocketEvent.NewMessage -> Log.d(TAG, "Événement JWT: Nouveau message")
                     is SocketEvent.NewConversationMessage -> Log.d(TAG, "Événement JWT: Message conversation")
+                    is SocketEvent.NewConversation -> Log.d(TAG, "Événement JWT: Nouvelle conversation - ${event.conversation.name}")
                 }
             }
             .launchIn(scope)

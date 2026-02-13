@@ -136,6 +136,22 @@ class SocketDataSource {
                 }
             }
 
+            // 🆕 Réception de nouvelles conversations en temps réel
+            on("newConversation") { args ->
+                Log.d(TAG, "Nouvelle conversation reçue: ${args.contentToString()}")
+                try {
+                    val convObj = args.firstOrNull() as? JSONObject
+                    if (convObj != null) {
+                        val conversation = parseConversation(convObj)
+                        // Ajouter en tête de liste
+                        _conversations.value = listOf(conversation) + _conversations.value
+                        scope.trySend(SocketEvent.NewConversation(conversation))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur parsing nouvelle conversation: ${e.message}", e)
+                }
+            }
+
             // Legacy: écouter les anciens événements pour compatibilité
             on("messageHistory") { args ->
                 Log.d(TAG, "Historique reçu: ${args.contentToString()}")
@@ -687,5 +703,6 @@ sealed class SocketEvent {
     data class MessageHistory(val messages: List<MessageDto>) : SocketEvent()
     data class NewMessage(val message: MessageDto) : SocketEvent()
     data class NewConversationMessage(val message: MessageDto) : SocketEvent()
+    data class NewConversation(val conversation: ConversationDto) : SocketEvent()
 }
 
