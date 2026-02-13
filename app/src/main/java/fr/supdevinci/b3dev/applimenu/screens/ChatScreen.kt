@@ -157,7 +157,7 @@ fun ChatScreen(
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "Vérifiez que:\n• Le serveur est démarré\n• L'URL est correcte\n• Le téléphone est sur le même réseau",
+                            "Vérifiez votre connexion internet\net réessayez.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

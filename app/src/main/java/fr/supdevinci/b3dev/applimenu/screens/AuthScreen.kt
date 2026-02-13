@@ -23,17 +23,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-// URL par défaut - 10.0.2.2 pour émulateur Android (localhost de la machine hôte)
-// Si tu testes sur un appareil physique, utilise l'IP de ton PC (ex: 192.168.1.x)
-private const val DEFAULT_SERVER_URL = "http://10.0.2.2:3000"
+// URL du serveur WebSocket
+private const val SERVER_URL = "http://10.0.2.2:3000"
 
 @Composable
 fun AuthScreen(
     onLoginSuccess: (username: String, serverUrl: String) -> Unit
 ) {
     var username by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(DEFAULT_SERVER_URL) }
-    var showServerField by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -64,20 +61,6 @@ fun AuthScreen(
             isError = errorMessage != null
         )
 
-        Spacer(Modifier.height(16.dp))
-
-        // Champ URL du serveur (toujours visible pour debug)
-        OutlinedTextField(
-            value = serverUrl,
-            onValueChange = {
-                serverUrl = it
-                errorMessage = null
-            },
-            label = { Text("URL du serveur") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
         if (errorMessage != null) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -95,13 +78,10 @@ fun AuthScreen(
                     username.isBlank() -> {
                         errorMessage = "Veuillez entrer un nom d'utilisateur"
                     }
-                    serverUrl.isBlank() -> {
-                        errorMessage = "Veuillez entrer l'URL du serveur"
-                    }
                     else -> {
                         isLoading = true
                         errorMessage = null
-                        onLoginSuccess(username.trim(), serverUrl.trim())
+                        onLoginSuccess(username.trim(), SERVER_URL)
                     }
                 }
             },
@@ -118,13 +98,5 @@ fun AuthScreen(
             }
             Text("Se connecter")
         }
-
-        Spacer(Modifier.height(16.dp))
-
-        Text(
-            text = "💡 Émulateur: 10.0.2.2 | Appareil: IP de votre PC",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
