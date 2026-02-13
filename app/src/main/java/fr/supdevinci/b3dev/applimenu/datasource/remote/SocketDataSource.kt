@@ -7,14 +7,10 @@ import fr.supdevinci.b3dev.applimenu.data.remote.dto.MessageDto
 import fr.supdevinci.b3dev.applimenu.data.remote.dto.UserDto
 import io.socket.client.IO
 import io.socket.client.Socket
-import io.socket.emitter.Emitter
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import org.json.JSONArray
@@ -50,9 +46,15 @@ class SocketDataSource {
     private val _currentConversationMessages = MutableStateFlow<List<MessageDto>>(emptyList())
     val currentConversationMessages: StateFlow<List<MessageDto>> = _currentConversationMessages.asStateFlow()
 
-    // Dernier message reçu (pour les notifications) - SharedFlow pour recevoir CHAQUE message
-    private val _lastReceivedMessage = MutableSharedFlow<MessageDto>(replay = 0)
-    val lastReceivedMessage: SharedFlow<MessageDto> = _lastReceivedMessage.asSharedFlow()
+    // Compteur pour rendre chaque message unique
+    private var messageCounter = 0L
+
+    // Wrapper pour message avec ID unique
+    data class MessageWithId(val id: Long, val message: MessageDto)
+
+    // Dernier message reçu (pour les notifications) - avec ID unique pour détecter chaque nouveau message
+    private val _lastReceivedMessage = MutableStateFlow<MessageWithId?>(null)
+    val lastReceivedMessage: StateFlow<MessageWithId?> = _lastReceivedMessage.asStateFlow()
 
     // ============== CONNEXION AVEC JWT ==============
 
@@ -136,9 +138,10 @@ class SocketDataSource {
                     if (messageObj != null) {
                         val message = parseConversationMessage(messageObj)
                         _currentConversationMessages.value = _currentConversationMessages.value + message
-                        // Émettre le message pour les notifications (SharedFlow)
-                        _lastReceivedMessage.tryEmit(message)
-                        Log.d(TAG, "Dernier message reçu: sender=${message.sender}, convId=${message.conversationId}")
+                        // Émettre le message avec un ID unique pour les notifications
+                        messageCounter++
+                        _lastReceivedMessage.value = MessageWithId(messageCounter, message)
+                        Log.d(TAG, "Message #$messageCounter: sender=${message.sender}, convId=${message.conversationId}")
                         scope.trySend(SocketEvent.NewConversationMessage(message))
                     }
                 } catch (e: Exception) {

@@ -101,6 +101,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     // Pour savoir si l'app est au premier plan
     private val _isAppInForeground = MutableStateFlow(true)
 
+    // Pour tracker le dernier message traité
+    private var lastProcessedMessageId = 0L
+
     fun setAppInForeground(inForeground: Boolean) {
         _isAppInForeground.value = inForeground
     }
@@ -121,32 +124,37 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeMessagesForNotifications() {
         viewModelScope.launch {
             repository.lastReceivedMessage.collect { messageInfo ->
-                if (!messageInfo.isFromMe) {
-                    // Vérifier si on est sur cette conversation
-                    val currentConvId = _currentConversationId.value
-                    val messageConvId = messageInfo.conversationId
+                // Vérifier que c'est un NOUVEAU message (ID différent du dernier traité)
+                if (messageInfo != null && messageInfo.uniqueId != lastProcessedMessageId) {
+                    lastProcessedMessageId = messageInfo.uniqueId
 
-                    val isOnThisConversation = currentConvId != null &&
-                                               messageConvId != null &&
-                                               currentConvId == messageConvId
+                    if (!messageInfo.isFromMe) {
+                        // Vérifier si on est sur cette conversation
+                        val currentConvId = _currentConversationId.value
+                        val messageConvId = messageInfo.conversationId
 
-                    if (!isOnThisConversation) {
-                        Log.d(TAG, "Notification: ${messageInfo.sender} - ${messageInfo.content}")
+                        val isOnThisConversation = currentConvId != null &&
+                                                   messageConvId != null &&
+                                                   currentConvId == messageConvId
 
-                        // Marquer la conversation comme non lue
-                        if (messageConvId != null) {
-                            _unreadConversationIds.value = _unreadConversationIds.value + messageConvId
-                            Log.d(TAG, "Conversation $messageConvId marquée comme non lue")
+                        if (!isOnThisConversation) {
+                            Log.d(TAG, "Notification #${messageInfo.uniqueId}: ${messageInfo.sender} - ${messageInfo.content}")
+
+                            // Marquer la conversation comme non lue
+                            if (messageConvId != null) {
+                                _unreadConversationIds.value = _unreadConversationIds.value + messageConvId
+                                Log.d(TAG, "Conversation $messageConvId marquée comme non lue")
+                            }
+
+                            // Afficher la notification
+                            notificationService.showMessageNotification(
+                                senderName = messageInfo.sender,
+                                messageContent = messageInfo.content,
+                                conversationId = messageInfo.conversationId
+                            )
+                        } else {
+                            Log.d(TAG, "Message ignoré (sur la conv): ${messageInfo.sender}")
                         }
-
-                        // Afficher la notification
-                        notificationService.showMessageNotification(
-                            senderName = messageInfo.sender,
-                            messageContent = messageInfo.content,
-                            conversationId = messageInfo.conversationId
-                        )
-                    } else {
-                        Log.d(TAG, "Message ignoré (sur la conv): ${messageInfo.sender}")
                     }
                 }
             }
