@@ -187,14 +187,7 @@ fun ConversationItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = if (conversation.hasUnreadMessages) {
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            )
-        } else {
-            CardDefaults.cardColors()
-        }
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -248,7 +241,7 @@ fun ConversationItem(
                     Text(
                         text = conversation.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = if (conversation.hasUnreadMessages) FontWeight.Bold else FontWeight.SemiBold,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -268,11 +261,7 @@ fun ConversationItem(
                     Text(
                         text = "${lastMessage.sender}: ${lastMessage.content}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (conversation.hasUnreadMessages)
-                            MaterialTheme.colorScheme.onSurface
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = if (conversation.hasUnreadMessages) FontWeight.Medium else FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

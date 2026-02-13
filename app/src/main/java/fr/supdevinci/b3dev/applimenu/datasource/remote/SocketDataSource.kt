@@ -10,8 +10,11 @@ import io.socket.client.Socket
 import io.socket.emitter.Emitter
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import org.json.JSONArray
@@ -47,9 +50,9 @@ class SocketDataSource {
     private val _currentConversationMessages = MutableStateFlow<List<MessageDto>>(emptyList())
     val currentConversationMessages: StateFlow<List<MessageDto>> = _currentConversationMessages.asStateFlow()
 
-    // Dernier message reçu (pour les notifications) - contient le conversationId
-    private val _lastReceivedMessage = MutableStateFlow<MessageDto?>(null)
-    val lastReceivedMessage: StateFlow<MessageDto?> = _lastReceivedMessage.asStateFlow()
+    // Dernier message reçu (pour les notifications) - SharedFlow pour recevoir CHAQUE message
+    private val _lastReceivedMessage = MutableSharedFlow<MessageDto>(replay = 0)
+    val lastReceivedMessage: SharedFlow<MessageDto> = _lastReceivedMessage.asSharedFlow()
 
     // ============== CONNEXION AVEC JWT ==============
 
@@ -133,8 +136,8 @@ class SocketDataSource {
                     if (messageObj != null) {
                         val message = parseConversationMessage(messageObj)
                         _currentConversationMessages.value = _currentConversationMessages.value + message
-                        // Mettre à jour le dernier message reçu pour les notifications
-                        _lastReceivedMessage.value = message
+                        // Émettre le message pour les notifications (SharedFlow)
+                        _lastReceivedMessage.tryEmit(message)
                         Log.d(TAG, "Dernier message reçu: sender=${message.sender}, convId=${message.conversationId}")
                         scope.trySend(SocketEvent.NewConversationMessage(message))
                     }

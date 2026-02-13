@@ -121,7 +121,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeMessagesForNotifications() {
         viewModelScope.launch {
             repository.lastReceivedMessage.collect { messageInfo ->
-                if (messageInfo != null && !messageInfo.isFromMe) {
+                if (!messageInfo.isFromMe) {
                     // Vérifier si on est sur cette conversation
                     val currentConvId = _currentConversationId.value
                     val messageConvId = messageInfo.conversationId

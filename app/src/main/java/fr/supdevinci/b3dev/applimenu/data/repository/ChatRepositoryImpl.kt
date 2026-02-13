@@ -13,8 +13,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
@@ -52,15 +55,15 @@ class ChatRepositoryImpl(
     private val _currentConversationMessages = MutableStateFlow<List<Message>>(emptyList())
     override val currentConversationMessages: StateFlow<List<Message>> = _currentConversationMessages.asStateFlow()
 
-    // Dernier message reçu (pour les notifications)
+    // Dernier message reçu (pour les notifications) - SharedFlow pour recevoir CHAQUE message
     data class ReceivedMessageInfo(
         val sender: String,
         val content: String,
         val conversationId: Int?,
         val isFromMe: Boolean
     )
-    private val _lastReceivedMessage = MutableStateFlow<ReceivedMessageInfo?>(null)
-    val lastReceivedMessage: StateFlow<ReceivedMessageInfo?> = _lastReceivedMessage.asStateFlow()
+    private val _lastReceivedMessage = MutableSharedFlow<ReceivedMessageInfo>(replay = 0)
+    val lastReceivedMessage: SharedFlow<ReceivedMessageInfo> = _lastReceivedMessage.asSharedFlow()
 
     init {
         observeIncomingMessages()
@@ -73,17 +76,15 @@ class ChatRepositoryImpl(
     private fun observeLastReceivedMessage() {
         scope.launch {
             socketDataSource.lastReceivedMessage.collect { messageDto ->
-                if (messageDto != null) {
-                    val currentUsername = socketDataSource.getCurrentUsername()
-                    val isFromMe = messageDto.sender == currentUsername
-                    _lastReceivedMessage.value = ReceivedMessageInfo(
-                        sender = messageDto.sender,
-                        content = messageDto.content,
-                        conversationId = messageDto.conversationId,
-                        isFromMe = isFromMe
-                    )
-                    Log.d(TAG, "Nouveau message pour notif: sender=${messageDto.sender}, convId=${messageDto.conversationId}, isFromMe=$isFromMe")
-                }
+                val currentUsername = socketDataSource.getCurrentUsername()
+                val isFromMe = messageDto.sender == currentUsername
+                _lastReceivedMessage.emit(ReceivedMessageInfo(
+                    sender = messageDto.sender,
+                    content = messageDto.content,
+                    conversationId = messageDto.conversationId,
+                    isFromMe = isFromMe
+                ))
+                Log.d(TAG, "Nouveau message pour notif: sender=${messageDto.sender}, convId=${messageDto.conversationId}, isFromMe=$isFromMe")
             }
         }
     }
