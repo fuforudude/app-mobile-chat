@@ -7,6 +7,6 @@ import kotlinx.serialization.Serializable
 data class MessageDto(
     val id: String? = null,
     val content: String,
-    val sender: String,  // Le serveur renvoie "sender" (string), pas "senderId"
-    val sentAt: Long     // Le serveur renvoie "sentAt", pas "timestamp"
+    val sender: String,
+    val sentAt: Long
 )
