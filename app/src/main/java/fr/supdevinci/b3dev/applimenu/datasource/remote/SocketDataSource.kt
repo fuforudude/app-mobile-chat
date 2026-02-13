@@ -138,14 +138,26 @@ class SocketDataSource {
 
             // 🆕 Réception de nouvelles conversations en temps réel
             on("newConversation") { args ->
-                Log.d(TAG, "Nouvelle conversation reçue: ${args.contentToString()}")
+                Log.d(TAG, "=== NOUVELLE CONVERSATION REÇUE ===")
+                Log.d(TAG, "Args bruts: ${args.contentToString()}")
                 try {
                     val convObj = args.firstOrNull() as? JSONObject
+                    Log.d(TAG, "JSON Object: $convObj")
                     if (convObj != null) {
                         val conversation = parseConversation(convObj)
-                        // Ajouter en tête de liste
-                        _conversations.value = listOf(conversation) + _conversations.value
-                        scope.trySend(SocketEvent.NewConversation(conversation))
+                        Log.d(TAG, "Conversation parsée: id=${conversation.id}, name=${conversation.name}")
+
+                        // Vérifier si la conversation n'existe pas déjà
+                        val existingIds = _conversations.value.map { it.id }
+                        if (!existingIds.contains(conversation.id)) {
+                            _conversations.value = listOf(conversation) + _conversations.value
+                            Log.d(TAG, "Conversation ajoutée à la liste. Total: ${_conversations.value.size}")
+                            scope.trySend(SocketEvent.NewConversation(conversation))
+                        } else {
+                            Log.d(TAG, "Conversation ${conversation.id} existe déjà, ignorée")
+                        }
+                    } else {
+                        Log.e(TAG, "convObj est null!")
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Erreur parsing nouvelle conversation: ${e.message}", e)
@@ -430,6 +442,14 @@ class SocketDataSource {
                 if (success) {
                     val convJson = responseObj?.getJSONObject("conversation")
                     val conversation = convJson?.let { parseConversation(it) }
+                    if (conversation != null) {
+                        // Ajouter la conversation à la liste si elle n'existe pas déjà
+                        val existingIds = _conversations.value.map { it.id }
+                        if (!existingIds.contains(conversation.id)) {
+                            _conversations.value = listOf(conversation) + _conversations.value
+                            Log.d(TAG, "Conversation privée ajoutée: ${conversation.name}")
+                        }
+                    }
                     callback(true, conversation, null)
                 } else {
                     val error = responseObj?.optString("error", "Erreur inconnue")
@@ -465,6 +485,14 @@ class SocketDataSource {
                 if (success) {
                     val convJson = responseObj?.getJSONObject("conversation")
                     val conversation = convJson?.let { parseConversation(it) }
+                    if (conversation != null) {
+                        // Ajouter la conversation à la liste si elle n'existe pas déjà
+                        val existingIds = _conversations.value.map { it.id }
+                        if (!existingIds.contains(conversation.id)) {
+                            _conversations.value = listOf(conversation) + _conversations.value
+                            Log.d(TAG, "Conversation groupe ajoutée: ${conversation.name}")
+                        }
+                    }
                     callback(true, conversation, null)
                 } else {
                     val error = responseObj?.optString("error", "Erreur inconnue")
