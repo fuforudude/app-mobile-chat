@@ -6,22 +6,23 @@ import fr.supdevinci.b3dev.applimenu.domain.Message
 import fr.supdevinci.b3dev.applimenu.domain.MessageStatus
 
 
-fun MessageDto.toEntity(conversationId: String, senderId: String): MessageEntity {
+fun MessageDto.toEntity(conversationId: String): MessageEntity {
     return MessageEntity(
-        id = this.id,
+        id = this.id ?: java.util.UUID.randomUUID().toString(),
         text = this.content,
         timestamp = this.sentAt,
-        senderId = senderId,
+        senderId = this.sender,
         status = "SENT"
     )
 }
-fun MessageDto.toDomain(): Message {
+
+fun MessageDto.toDomain(currentUsername: String? = null): Message {
     return Message(
-        id = this.id ?: "",
-        text = this.content ?: "",
-        senderId = this.senderId ?: "Inconnu",
-        timestamp = this.sentAt?.toLong() ?: System.currentTimeMillis(),
-        isFromMe = false,
+        id = this.id ?: java.util.UUID.randomUUID().toString(),
+        text = this.content,
+        senderId = this.sender,
+        timestamp = this.sentAt,
+        isFromMe = currentUsername != null && this.sender == currentUsername,
         status = MessageStatus.SENT
     )
 }
