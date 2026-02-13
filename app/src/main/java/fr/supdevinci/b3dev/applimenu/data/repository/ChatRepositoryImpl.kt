@@ -71,6 +71,11 @@ class ChatRepositoryImpl(
     private fun observeConversations() {
         scope.launch {
             socketDataSource.conversations.collect { dtoList ->
+                Log.d(TAG, "=== CONVERSATIONS MISES À JOUR ===")
+                Log.d(TAG, "Nombre de conversations reçues: ${dtoList.size}")
+                dtoList.forEach {
+                    Log.d(TAG, "  - ${it.id}: ${it.name}")
+                }
                 _conversations.value = dtoList.map { it.toDomain() }
             }
         }
