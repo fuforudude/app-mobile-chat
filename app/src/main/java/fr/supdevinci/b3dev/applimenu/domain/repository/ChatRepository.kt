@@ -16,6 +16,7 @@ interface ChatRepository {
 
     // Connexion
     fun connect(serverUrl: String, username: String): Flow<Unit>
+    fun connectWithToken(serverUrl: String, token: String, username: String): Flow<Unit>
     fun disconnect()
     fun isConnected(): Boolean
     fun getCurrentUsername(): String?

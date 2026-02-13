@@ -30,6 +30,7 @@ class SocketDataSource {
 
     private var socket: Socket? = null
     private var currentUsername: String? = null
+    private var currentToken: String? = null
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -46,7 +47,135 @@ class SocketDataSource {
     private val _currentConversationMessages = MutableStateFlow<List<MessageDto>>(emptyList())
     val currentConversationMessages: StateFlow<List<MessageDto>> = _currentConversationMessages.asStateFlow()
 
-    // ============== CONNEXION ==============
+    // ============== CONNEXION AVEC JWT ==============
+
+    /**
+     * Se connecter au serveur avec un token JWT
+     * L'authentification est automatique via le token
+     */
+    fun connectWithToken(serverUrl: String = DEFAULT_URL, token: String, username: String): Flow<SocketEvent> = callbackFlow {
+        try {
+            Log.d(TAG, "Tentative de connexion JWT à $serverUrl pour: $username")
+            _connectionState.value = ConnectionState.Connecting
+
+            val options = IO.Options().apply {
+                forceNew = true
+                reconnection = true
+                reconnectionAttempts = 5
+                reconnectionDelay = 1000
+                timeout = 10000
+                // Passer le token JWT pour l'authentification
+                auth = mapOf("token" to token)
+            }
+
+            socket = IO.socket(serverUrl, options)
+            currentUsername = username
+            currentToken = token
+
+            socket?.apply {
+                onAnyIncoming { args ->
+                    Log.d(TAG, "Événement reçu: ${args.contentToString()}")
+                }
+
+                on(Socket.EVENT_CONNECT) {
+                    Log.d(TAG, "Connecté au serveur avec JWT")
+                    _connectionState.value = ConnectionState.Connected
+                    trySend(SocketEvent.Connected)
+                    // Pas besoin de join - l'authentification est automatique via JWT
+                    trySend(SocketEvent.JoinSuccess)
+                }
+
+                on(Socket.EVENT_DISCONNECT) {
+                    Log.d(TAG, "Déconnecté du serveur")
+                    _connectionState.value = ConnectionState.Disconnected
+                    trySend(SocketEvent.Disconnected)
+                }
+
+                on(Socket.EVENT_CONNECT_ERROR) { args ->
+                    val error = args.firstOrNull()?.toString() ?: "Erreur inconnue"
+                    Log.e(TAG, "Erreur de connexion: $error")
+                    _connectionState.value = ConnectionState.Error(error)
+                    trySend(SocketEvent.Error(error))
+                }
+
+                // Écouter les événements de messages
+                setupMessageListeners(this@callbackFlow)
+
+                connect()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception lors de la connexion JWT: ${e.message}", e)
+            _connectionState.value = ConnectionState.Error(e.message ?: "Erreur")
+            trySend(SocketEvent.Error(e.message ?: "Erreur de connexion"))
+        }
+
+        awaitClose {
+            Log.d(TAG, "Fermeture du flow JWT, déconnexion...")
+            disconnect()
+        }
+    }
+
+    /**
+     * Configuration des listeners de messages (utilisé par les deux méthodes de connexion)
+     */
+    private fun setupMessageListeners(scope: kotlinx.coroutines.channels.ProducerScope<SocketEvent>) {
+        socket?.apply {
+            // Réception de nouveaux messages dans une conversation
+            on("newConversationMessage") { args ->
+                Log.d(TAG, "Nouveau message conversation: ${args.contentToString()}")
+                try {
+                    val messageObj = args.firstOrNull() as? JSONObject
+                    if (messageObj != null) {
+                        val message = parseConversationMessage(messageObj)
+                        _currentConversationMessages.value = _currentConversationMessages.value + message
+                        scope.trySend(SocketEvent.NewConversationMessage(message))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur parsing message: ${e.message}", e)
+                }
+            }
+
+            // Legacy: écouter les anciens événements pour compatibilité
+            on("messageHistory") { args ->
+                Log.d(TAG, "Historique reçu: ${args.contentToString()}")
+                try {
+                    val messagesArray = args.firstOrNull() as? JSONArray
+                    if (messagesArray != null) {
+                        val messages = parseMessageArray(messagesArray)
+                        _incomingMessages.value = messages
+                        scope.trySend(SocketEvent.MessageHistory(messages))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur parsing historique: ${e.message}", e)
+                }
+            }
+
+            on("newMessage") { args ->
+                Log.d(TAG, "Nouveau message: ${args.contentToString()}")
+                try {
+                    val messageObj = args.firstOrNull() as? JSONObject
+                    if (messageObj != null) {
+                        val message = parseMessage(messageObj)
+                        _incomingMessages.value = _incomingMessages.value + message
+                        scope.trySend(SocketEvent.NewMessage(message))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erreur parsing message: ${e.message}", e)
+                }
+            }
+
+            on("error") { args ->
+                val errorMsg = (args.firstOrNull() as? JSONObject)?.optString("message")
+                    ?: args.firstOrNull()?.toString()
+                    ?: "Erreur serveur"
+                Log.e(TAG, "Erreur serveur: $errorMsg")
+                scope.trySend(SocketEvent.Error(errorMsg))
+            }
+        }
+    }
+
+    // ============== CONNEXION LEGACY (sans JWT) ==============
 
     fun connect(serverUrl: String = DEFAULT_URL, username: String): Flow<SocketEvent> = callbackFlow {
         try {

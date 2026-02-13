@@ -46,12 +46,12 @@ import androidx.compose.ui.unit.dp
 import fr.supdevinci.b3dev.applimenu.datasource.remote.ConnectionState
 import fr.supdevinci.b3dev.applimenu.domain.model.Conversation
 import fr.supdevinci.b3dev.applimenu.domain.model.ConversationType
-import fr.supdevinci.b3dev.applimenu.presentation.ChatViewModel
+import fr.supdevinci.b3dev.applimenu.presentation.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationsScreen(
-    viewModel: ChatViewModel,
+    viewModel: AuthViewModel,
     onConversationClick: (Int) -> Unit,
     onSearchUsersClick: () -> Unit,
     onDisconnect: () -> Unit
@@ -88,7 +88,7 @@ fun ConversationsScreen(
                         Icon(Icons.Default.Search, contentDescription = "Rechercher")
                     }
                     IconButton(onClick = {
-                        viewModel.disconnect()
+                        viewModel.logout()
                         onDisconnect()
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Déconnexion")

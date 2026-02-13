@@ -72,6 +72,10 @@ dependencies {
     // Socket.IO client
     implementation("io.socket:socket.io-client:2.1.0")
 
+    // Gson pour Retrofit
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.kotlinx.serialization.json)

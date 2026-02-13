@@ -35,12 +35,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import fr.supdevinci.b3dev.applimenu.presentation.ChatViewModel
+import fr.supdevinci.b3dev.applimenu.presentation.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationChatScreen(
-    viewModel: ChatViewModel,
+    viewModel: AuthViewModel,
     conversationId: Int,
     conversationName: String,
     onBack: () -> Unit

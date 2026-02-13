@@ -115,6 +115,26 @@ class ChatRepositoryImpl(
         emit(Unit)
     }
 
+    override fun connectWithToken(serverUrl: String, token: String, username: String): Flow<Unit> = flow {
+        Log.d(TAG, "Connexion JWT au serveur: $serverUrl avec username: $username")
+
+        socketDataSource.connectWithToken(serverUrl, token, username)
+            .onEach { event ->
+                when (event) {
+                    is SocketEvent.Connected -> Log.d(TAG, "Événement JWT: Connecté")
+                    is SocketEvent.Disconnected -> Log.d(TAG, "Événement JWT: Déconnecté")
+                    is SocketEvent.JoinSuccess -> Log.d(TAG, "Événement JWT: Authentifié")
+                    is SocketEvent.Error -> Log.e(TAG, "Événement JWT: Erreur - ${event.message}")
+                    is SocketEvent.MessageHistory -> Log.d(TAG, "Événement JWT: Historique (${event.messages.size})")
+                    is SocketEvent.NewMessage -> Log.d(TAG, "Événement JWT: Nouveau message")
+                    is SocketEvent.NewConversationMessage -> Log.d(TAG, "Événement JWT: Message conversation")
+                }
+            }
+            .launchIn(scope)
+
+        emit(Unit)
+    }
+
     override fun disconnect() {
         Log.d(TAG, "Déconnexion...")
         socketDataSource.disconnect()

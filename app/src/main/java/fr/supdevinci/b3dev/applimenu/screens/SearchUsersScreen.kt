@@ -45,12 +45,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import fr.supdevinci.b3dev.applimenu.domain.model.User
-import fr.supdevinci.b3dev.applimenu.presentation.ChatViewModel
+import fr.supdevinci.b3dev.applimenu.presentation.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchUsersScreen(
-    viewModel: ChatViewModel,
+    viewModel: AuthViewModel,
     onBack: () -> Unit,
     onUserClick: (User) -> Unit,
     onConversationCreated: (Int) -> Unit
